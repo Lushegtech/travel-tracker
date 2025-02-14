@@ -31,6 +31,60 @@ app.get("/", async (req, res) => {
   db.end;
 });
 
+app.post("/add", async (req, res) => {
+  // Get the country name from the form submission
+  const countryName = req.body["country"]; // "country" matches the 'name' attribute in the HTML form input that submits the country name
+
+  try {
+    // Query the countries table to find the country code
+    // Using LIKE with wildcards for flexible matching
+    // $1 is a parameterized query to prevent SQL injection
+    const result = await db.query(
+      "SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%'",
+      [input.toLowerCase()]
+    );
+
+    // If no country is found with that name
+    if (result.rows.length === 0) {
+      res.render("index.ejs", { 
+        countries: countries,
+        total: countries.length,
+        error: "Country not found. Please try again."
+      });
+    } else {
+      // Extract the country code from the query result
+      const countryCode = result.rows[0].country_code;
+      
+      try {
+        // Attempt to insert the country code into visited_countries table
+        // This may fail if the country is already in the table (duplicate)
+        await db.query(
+          "INSERT INTO visited_countries (country_code) VALUES ($1)",
+          [countryCode]
+        );
+        // If successful, redirect to homepage to see updated map
+        res.redirect("/");
+      } catch (err) {
+        // If insert fails (likely due to duplicate), show error
+        console.log(err);
+        res.render("index.ejs", {
+          countries: countries,
+          total: countries.length,
+          error: "Country has already been added, try again."
+        });
+      }
+    }
+  } catch (err) {
+    // If the main database query fails, show generic error
+    console.log(err);
+    res.render("index.ejs", {
+      countries: countries, 
+      total: countries.length,
+      error: "An error occurred. Please try again."
+    });
+  }
+})
+
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
