@@ -46,27 +46,34 @@ app.post("/add", async (req, res) => {
 
     // If no country is found with that name
     if (result.rows.length === 0) {
+      // If no country is found in the database matching the user's input
+      // Render the index page with an error message
       res.render("index.ejs", { 
         countries: countries,
         total: countries.length,
         error: "Country not found. Please try again."
       });
     } else {
-      // Extract the country code from the query result
+      // If a matching country was found:
+      // Get the country_code from the first (and should be only) result
       const countryCode = result.rows[0].country_code;
       
       try {
-        // Attempt to insert the country code into visited_countries table
-        // This may fail if the country is already in the table (duplicate)
+        // Try to insert the country code into visited_countries table
+        // Using parameterized query ($1) to prevent SQL injection
+        // This will fail if this country code already exists in the table
+        // due to the unique constraint on country_code
         await db.query(
           "INSERT INTO visited_countries (country_code) VALUES ($1)",
           [countryCode]
         );
-        // If successful, redirect to homepage to see updated map
+        // If insert succeeds, redirect to homepage which will show updated map
         res.redirect("/");
       } catch (err) {
-        // If insert fails (likely due to duplicate), show error
+        // If insert fails (most likely because country was already visited)
+        // Log the error for debugging
         console.log(err);
+        // Render index page with duplicate country error message
         res.render("index.ejs", {
           countries: countries,
           total: countries.length,
