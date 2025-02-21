@@ -33,14 +33,21 @@ app.get("/", async (req, res) => {
 
 app.post("/add", async (req, res) => {
   // Get the country name from the form submission
-  const countryName = req.body["country"]; // "country" matches the 'name' attribute in the HTML form input that submits the country name
+  const input = req.body["country"]; // "country" matches the 'name' attribute in the HTML form input that submits the country name
 
   try {
     // Query the countries table to find the country code
-    // Using LIKE with wildcards for flexible matching
+    // Using LIKE with wildcards for flexible matching 
+    // The LIKE operator with wildcards is used in the database query below:
+    // If user types "united", the query "... LIKE '%united%'" will:
+    // 1. Match "United States" because "united" appears in the middle
+    // 2. Match "United Kingdom" because "united" appears in the middle
+    // The % symbols mean "match any characters before/after the search term"
+    // For example: 'united' would match 'United States', 'United Kingdom', etc.
+    // The % symbols before and after match any characters in those positions
     // $1 is a parameterized query to prevent SQL injection
     const result = await db.query(
-      "SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%'",
+      "SELECT country_code FROM countries WHERE country_name LIKE '%' || $1 || '%'",
       [input.toLowerCase()]
     );
 
@@ -54,26 +61,30 @@ app.post("/add", async (req, res) => {
         error: "Country not found. Please try again."
       });
     } else {
-      // If a matching country was found:
-      // Get the country_code from the first (and should be only) result
+      // If a matching country was found in the database:
+      // 1. Get the first result from the query (result.rows[0])
+      // 2. Extract just the country_code field from that result
+      // 3. This code will be used to:
+      //    - Insert into visited_countries table
+      //    - Color the country on the world map when rendered
       const countryCode = result.rows[0].country_code;
-      
       try {
-        // Try to insert the country code into visited_countries table
-        // Using parameterized query ($1) to prevent SQL injection
-        // This will fail if this country code already exists in the table
-        // due to the unique constraint on country_code
+        // Attempt to insert the country code into visited_countries table
+        // This may fail if the country is already in the table (duplicate)
         await db.query(
+          // Insert the country code into visited_countries table
+          // $1 is replaced with countryCode parameter to safely insert the value
+          // This query adds a new row with the country_code from the countries table
           "INSERT INTO visited_countries (country_code) VALUES ($1)",
-          [countryCode]
+          [countryCode] // The countryCode value is passed as an array parameter to safely insert into the SQL query.
+                       // This prevents SQL injection by using parameterized queries where $1 in the query is replaced
+                       // with this sanitized value
         );
-        // If insert succeeds, redirect to homepage which will show updated map
+        // If successful, redirect to homepage to see updated map
         res.redirect("/");
       } catch (err) {
-        // If insert fails (most likely because country was already visited)
-        // Log the error for debugging
+        // If insert fails (likely due to duplicate), show error
         console.log(err);
-        // Render index page with duplicate country error message
         res.render("index.ejs", {
           countries: countries,
           total: countries.length,
