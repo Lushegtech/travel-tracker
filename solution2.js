@@ -18,12 +18,18 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 async function checkVisisted() {
+  // Query the visited_countries table to get all country codes
   const result = await db.query("SELECT country_code FROM visited_countries");
 
+  // Initialize empty array to store country codes
   let countries = [];
+
+  // Loop through each row in the result and add the country_code to our array
   result.rows.forEach((country) => {
     countries.push(country.country_code);
   });
+
+  // Return array of country codes that have been visited
   return countries;
 }
 
